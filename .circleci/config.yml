@@ -72,9 +72,7 @@ jobs:
       - run:
           name: Build front-end
           working_directory: ./frontend
-          command: |
-            npm run build 
-            exit 1
+          command: npm run build 
       - persist_to_workspace:
           root: .
           paths:
@@ -90,9 +88,7 @@ jobs:
       - run:
           name: Back-end build
           working_directory: ./backend
-          command: |
-             npm run build
-             exit 1
+          command: npm run build
       - persist_to_workspace:
           root: .
           paths:
@@ -103,33 +99,52 @@ jobs:
       - image: circleci/node:13.8.0
     steps:
       - checkout
-      # Restore from cache
-      # Your job code here
-      
-                
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run tests
+          working_directory: ./frontend
+          command: |
+          npm test
+          exit 1
+                     
   test-backend:
     docker:
       - image: circleci/node:13.8.0
     steps:
       - checkout
-      # Restore from cache
-      # Your job code here
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run tests
+          working_directory: ./backend
+          command: |
+          npm test
+          exit 1
             
   scan-frontend:
     docker:
       - image: circleci/node:13.8.0
     steps:
       - checkout
-      # Restore from cache
-      # Your job code here
+      - attach_workspace:
+          at: .
+      - run:
+          name: Check Frontend against security vulnerabilities
+          working_directory: ./frontend
+          command: npm audit
 
   scan-backend:
     docker:
       - image: circleci/node:13.8.0
     steps:
       - checkout
-      # Restore from cache
-      # Your job code here
+      - attach_workspace:
+          at: .
+      - run:
+          name: Check Backend against security vulnerabilities
+          working_directory: ./backend
+          command: npm audit
 
   deploy-infrastructure:
     docker:
@@ -308,18 +323,18 @@ workflows:
       - build-backend:
           requires:
             - install-backend-dependencies
-    #  - test-frontend:
-    #      requires: 
-    #        - build-frontend
-    #  - test-backend:
-    #      requires: 
-    #        - build-backend
-    #  - scan-backend:
-    #      requires: 
-    #        - build-backend
-    #  - scan-frontend:
-    #      requires: 
-    #        - build-frontend
+      - test-frontend:
+          requires: 
+            - build-frontend
+      - test-backend:
+          requires: 
+            - build-backend
+      - scan-backend:
+          requires: 
+            - build-backend
+      - scan-frontend:
+          requires: 
+            - build-frontend
      # - deploy-infrastructure:
      #     requires: 
      #       - test-frontend 
