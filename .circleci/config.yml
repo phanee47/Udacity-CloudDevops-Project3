@@ -33,37 +33,70 @@ commands:
             fi
             
 jobs:
+
+  install-backend-dependencies:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - run:
+          name: npm install
+          working_directory: ./backend
+          command: ls -la && npm install
+      - persist_to_workspace:
+          root: .
+          paths:
+            - backend/node_modules
+
+  install-frontend-dependencies:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - run:
+          name: npm install
+          working_directory: ./frontend
+          command: ls -la && npm install
+      - persist_to_workspace:
+          root: .
+          paths:
+            - frontend/node_modules
+ 
   build-frontend:
     docker:
       - image: circleci/node:13.8.0
     steps:
       - checkout
-      - restore_cache:
-          keys: [frontend-build]
+      - attach_workspace:
+          at: .
       - run:
           name: Build front-end
+          working_directory: ./frontend
           command: |
-            # Your code here
+            npm run build 
             exit 1
-      - save_cache:
-          paths: [frontend/node_modules]
-          key: frontend-build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - frontend/dist
 
   build-backend:
     docker:
       - image: circleci/node:13.8.0
     steps:
       - checkout
-      - restore_cache:
-          keys: [backend-build]
+      - attach_workspace:
+          at: .
       - run:
           name: Back-end build
+          working_directory: ./backend
           command: |
-             # Your code here
+             npm run build
              exit 1
-      - save_cache:
-          paths: [backend/node_modules]
-          key: backend-build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - backend/dist
 
   test-frontend:
     docker:
@@ -267,49 +300,55 @@ jobs:
 workflows:
   default:
     jobs:
-      - build-frontend
-      - build-backend
-      - test-frontend:
-          requires: 
-            - build-frontend
-      - test-backend:
-          requires: 
-            - build-backend
-      - scan-backend:
-          requires: 
-            - build-backend
-      - scan-frontend:
-          requires: 
-            - build-frontend
-      - deploy-infrastructure:
-          requires: 
-            - test-frontend 
-            - test-backend 
-            - scan-frontend 
-            - scan-backend
-          filters:
-            branches:
-              only: 
-                - test-feature-branch
-      - configure-infrastructure:
-          requires: 
-            - deploy-infrastructure
-      - run-migrations:
-          requires: 
-            - configure-infrastructure
-      - deploy-frontend:
-          requires: 
-            - run-migrations
-      - deploy-backend:
-          requires: 
-            - run-migrations
-      - smoke-test:
-          requires: 
-            - deploy-backend 
-            - deploy-frontend
-      - cloudfront-update:
-          requires: 
-            - smoke-test
-      - cleanup:
-          requires: 
-            - cloudfront-update
+      - install-backend-dependencies
+      - install-frontend-dependencies
+      - build-frontend:
+          requires:
+            - install-frontend-dependencies
+      - build-backend:
+          requires:
+            - install-backend-dependencies
+    #  - test-frontend:
+    #      requires: 
+    #        - build-frontend
+    #  - test-backend:
+    #      requires: 
+    #        - build-backend
+    #  - scan-backend:
+    #      requires: 
+    #        - build-backend
+    #  - scan-frontend:
+    #      requires: 
+    #        - build-frontend
+     # - deploy-infrastructure:
+     #     requires: 
+     #       - test-frontend 
+     #       - test-backend 
+     #       - scan-frontend 
+     #       - scan-backend
+     #     filters:
+     #       branches:
+     #         only: 
+     #           - test-feature-branch
+     # - configure-infrastructure:
+     #     requires: 
+     #       - deploy-infrastructure
+     # - run-migrations:
+     #     requires: 
+     #       - configure-infrastructure
+     # - deploy-frontend:
+     #     requires: 
+     #       - run-migrations
+     # - deploy-backend:
+     #     requires: 
+     #       - run-migrations
+     # - smoke-test:
+     #     requires: 
+     #       - deploy-backend 
+     #       - deploy-frontend
+     # - cloudfront-update:
+     #     requires: 
+     #       - smoke-test
+     # - cleanup:
+     #     requires: 
+     #       - cloudfront-update
