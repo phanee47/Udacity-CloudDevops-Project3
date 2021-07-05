@@ -4,34 +4,50 @@ commands:
   destroy-environment:
     description: Destroy back-end and front-end cloudformation stacks given a workflow ID.
     parameters:
-      # Add parameter here   
+      when:
+        type: string
+      id:
+        type: string
     steps:
       - run:
-          name: Destroy environments
-          when: on_fail
+          name: Destroy udapeople backend cfn stack
           command: |
-            # Your code here
-            exit 1
+            aws cloudformation delete-stack --stack-name udapeople-backend-<< parameters.id >>
+          environment:
+            TERM: xterm-256color
+          when: << parameters.when >>
+      - run:
+          name: Destroy udapeople frontend cfn stack and S3 bucket
+          command: |
+            aws s3 rm s3://udapeople-<< parameters.id >> --recursive
+            aws cloudformation delete-stack --stack-name udapeople-frontend-<< parameters.id >>
+          environment:
+              TERM: xterm-256color
+          when: << parameters.when >>
 
   revert-migrations:
     description: Revert the last migration if successfully run in the current workflow.
     parameters:
-      # Add parameter here     
+      when:
+        type: string
+      id:
+        type: string     
     steps:
       - run:
           name: Revert migrations
-          # Add when this will run
+          working_directory: ./backend
           command: |
-            # Curl command here to see if there was a successful migration associated with the workflow id, store result in SUCCESS variable
+            SUCCESS=$(curl -H "token: c9c28e9f-179a-42bb-a78c-55671d15c8b7" --request GET https://api.memstash.io/values/DB_MIGRATION_<< parameters.id >>)
             SUCCESS = 1
             if(( $SUCCESS==1 )); 
             then
-            #  cd ~/project/backend
-            #  npm install
-            #  Add revert code here. You can find this in the Getting Started section.
-              exit 1
+              pwd
+              ls -la
+              npm run migrations:revert
             fi
-            
+          when: << parameters.when >>
+
+                      
 jobs:
 
   install-backend-dependencies:
@@ -147,36 +163,46 @@ jobs:
     docker:
       - image: amazon/aws-cli
     steps:
-      # Checkout code from git
+      - checkout
       - run:
-          name: Ensure back-end infrastructure exists
+          name: Install dependencies
+          command: yum install -y tar gzip
+      - run:
+          name: Deploy backend infrastructure
+          working_directory: ./.circleci/files
           command: |
             aws cloudformation deploy \
-              --template-file .circleci/files/backend.yml \
-              #--tags project=your-tag \
-              # --stack-name "your back-end stack name with workflow id" \
-              # --parameter-overrides ID="your workflow id"  
-              exit 1
+              --template-file backend.yml \
+              --stack-name "udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}" \
+              --tags project=udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}
       - run:
           name: Ensure front-end infrastructure exist
+          working_directory: ./.circleci/files
           command: |
             aws cloudformation deploy \
-              --template-file .circleci/files/frontend.yml \
-              #--tags project=your-tag \
-              # --stack-name "your front-end stack name with workflow id" \
-              # --parameter-overrides ID="your workflow id"  
-              exit 1
+              --template-file frontend.yml \
+              --stack-name "udapeople-frontend-${CIRCLE_WORKFLOW_ID:0:7}" \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}" \
+              --tags project=udapeople-frontend-${CIRCLE_WORKFLOW_ID:0:7}
       - run:
           name: Add back-end ip to ansible inventory
+          working_directory: ./.circleci/ansible
           command: |
-            # Your code here
-            exit 1
+            aws ec2 describe-instances \
+              --query 'Reservations[*].Instances[*].PublicIpAddress' \
+              --filters "Name=tag:project,Values=udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+              --output text >> inventory
+            cat inventory
       - persist_to_workspace:
-          root: ~/
+          root: .
           paths:
-            - project/.circleci/ansible/inventory.txt
-      # Here's where you will add some code to rollback on failure      
-
+            - .circleci/ansible/inventory
+      - destroy_environment:
+          id: ${CIRCLE_WORKFLOW_ID:0:7}
+          when: on_fail     
+     
+         
   configure-infrastructure:
     docker:
       - image: python:3.9.0-alpine
@@ -312,27 +338,27 @@ jobs:
 workflows:
   default:
     jobs:
-      - install-backend-dependencies
-      - install-frontend-dependencies
-      - build-frontend:
-          requires:
-            - install-frontend-dependencies
-      - build-backend:
-          requires:
-            - install-backend-dependencies
+     # - install-backend-dependencies
+     # - install-frontend-dependencies
+     # - build-frontend:
+     #     requires:
+     #       - install-frontend-dependencies
+     # - build-backend:
+     #     requires:
+     #       - install-backend-dependencies
      # - test-frontend:
      #     requires: 
      #       - build-frontend
      # - test-backend:
      #     requires: 
      #       - build-backend
-      - scan-backend:
-          requires: 
-            - build-backend
-      - scan-frontend:
-          requires: 
-            - build-frontend
-     # - deploy-infrastructure:
+     # - scan-backend:
+     #     requires: 
+     #       - build-backend
+     # - scan-frontend:
+     #     requires: 
+     #       - build-frontend
+       - deploy-infrastructure
      #     requires: 
      #       - test-frontend 
      #       - test-backend 
